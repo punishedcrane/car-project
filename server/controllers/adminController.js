@@ -7,9 +7,9 @@ const generateAdminToken = (res, adminId) => {
 
   res.cookie('adminJwt', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure: true,            // must be true when sameSite is 'none'
+    sameSite: 'none',        // allows cross-site cookie for Vercel -> Render
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 };
 
@@ -65,7 +65,12 @@ export const loginAdmin = async (req, res) => {
 
 // Logout admin
 export const logoutAdmin = (req, res) => {
-  res.cookie('adminJwt', '', { httpOnly: true, expires: new Date(0) });
+  res.cookie('adminJwt', '', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    expires: new Date(0),
+  });
   res.json({ message: 'Admin logged out successfully' });
 };
 
