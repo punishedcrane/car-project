@@ -1,4 +1,3 @@
-// controller/stripeController
 import Stripe from "stripe";
 import dotenv from "dotenv";
 dotenv.config();
@@ -37,6 +36,7 @@ export const createStripeSession = async (req, res) => {
       }
     });
 
+    console.log("Stripe session created:", session.id); // For debugging
     res.json({ id: session.id });
   } catch (error) {
     console.error("Stripe session error:", error);
