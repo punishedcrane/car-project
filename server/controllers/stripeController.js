@@ -5,12 +5,35 @@ dotenv.config();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export const createStripeSession = async (req, res) => {
-  const { vehicle, userId, startDate, endDate } = req.body;
-
-  const rentalDays = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
-  const totalAmount = vehicle.price * rentalDays;
-
   try {
+    console.log("Creating Stripe session with data:", req.body);
+    const { vehicle, userId, startDate, endDate } = req.body;
+
+    if (!vehicle || !vehicle._id || !vehicle.name || !vehicle.price) {
+      return res.status(400).json({ 
+        message: "Invalid vehicle data provided",
+        received: req.body
+      });
+    }
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: "Start and end dates are required" });
+    }
+
+    const startDateObj = new Date(startDate);
+    const endDateObj = new Date(endDate);
+    
+    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+      return res.status(400).json({ message: "Invalid date format" });
+    }
+
+    const rentalDays = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24));
+    if (rentalDays <= 0) {
+      return res.status(400).json({ message: "End date must be after start date" });
+    }
+
+    const totalAmount = Math.round(vehicle.price * rentalDays);
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [{
@@ -18,7 +41,7 @@ export const createStripeSession = async (req, res) => {
           currency: "usd",
           product_data: {
             name: `Rent ${vehicle.name}`,
-            description: `From ${startDate} to ${endDate}`
+            description: `From ${startDate} to ${endDate} (${rentalDays} days)`
           },
           unit_amount: totalAmount * 100, // in cents
         },
@@ -36,10 +59,10 @@ export const createStripeSession = async (req, res) => {
       }
     });
 
-    console.log("Stripe session created:", session.id); // For debugging
+    console.log("Stripe session created:", session.id);
     res.json({ id: session.id });
   } catch (error) {
     console.error("Stripe session error:", error);
-    res.status(500).json({ message: "Stripe session failed" });
+    res.status(500).json({ message: "Stripe session failed", error: error.message });
   }
 };
