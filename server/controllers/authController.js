@@ -9,8 +9,8 @@ const generateTokenAndSetCookie = (res, userId) => {
 
   res.cookie('jwt', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // Secure in production
-    sameSite: 'lax', // Changed from 'strict' to 'lax' for cross-origin compatibility
+    secure: true, // required for SameSite=None
+    sameSite: 'None', // required for cross-origin cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 };
@@ -77,8 +77,8 @@ export const logoutUser = (req, res) => {
   res.cookie('jwt', '', {
     httpOnly: true,
     expires: new Date(0),
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'None',
+    secure: true,
   });
   res.json({ message: 'Logged out successfully' });
 };
