@@ -9,9 +9,9 @@ const generateTokenAndSetCookie = (res, userId) => {
 
   res.cookie('jwt', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure: process.env.NODE_ENV === 'production', // Secure in production
+    sameSite: 'lax', // Changed from 'strict' to 'lax' for cross-origin compatibility
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 };
 
@@ -74,7 +74,12 @@ export const loginUser = async (req, res) => {
 
 // Logout user
 export const logoutUser = (req, res) => {
-  res.cookie('jwt', '', { httpOnly: true, expires: new Date(0) });
+  res.cookie('jwt', '', {
+    httpOnly: true,
+    expires: new Date(0),
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+  });
   res.json({ message: 'Logged out successfully' });
 };
 
