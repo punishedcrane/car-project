@@ -1,3 +1,4 @@
+// server/utils/generateToken.js
 import jwt from 'jsonwebtoken';
 
 const generateToken = (res, userId) => {
@@ -5,11 +6,11 @@ const generateToken = (res, userId) => {
     expiresIn: '30d',
   });
 
-  res.cookie('token', token, {
-    httpOnly: true, // Cannot be accessed via JavaScript (secure)
-    secure: process.env.NODE_ENV === 'production', // Send cookie over HTTPS only in production
-    sameSite: 'strict', // Prevent CSRF
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  res.cookie('jwt', token, {
+    httpOnly: true,                                // Secure from client-side JS
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    sameSite: 'strict',                            // Protect against CSRF
+    maxAge: 30 * 24 * 60 * 60 * 1000,              // 30 days
   });
 };
 
