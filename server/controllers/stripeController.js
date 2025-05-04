@@ -9,10 +9,11 @@ export const createStripeSession = async (req, res) => {
     console.log("Creating Stripe session with data:", req.body);
     const { vehicle, userId, startDate, endDate } = req.body;
 
+    // Validate request data
     if (!vehicle || !vehicle._id || !vehicle.name || !vehicle.price) {
       return res.status(400).json({ 
         message: "Invalid vehicle data provided",
-        received: req.body
+        received: vehicle
       });
     }
 
@@ -34,6 +35,7 @@ export const createStripeSession = async (req, res) => {
 
     const totalAmount = Math.round(vehicle.price * rentalDays);
 
+    // Create the session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [{

@@ -5,6 +5,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { FaCar, FaGasPump, FaCogs, FaCalendarAlt, FaCreditCard } from 'react-icons/fa';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 const Booking = () => {
   const { id } = useParams();
@@ -22,9 +23,14 @@ const Booking = () => {
   const endDate = query.get('end');
 
   useEffect(() => {
+    const userFromStorage = localStorage.getItem('user');
+    if (userFromStorage) {
+      setUser(JSON.parse(userFromStorage));
+    }
+    
     const fetchVehicle = async () => {
       try {
-        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/${id}`);
+        const res = await axios.get(`${BASE_URL}/api/vehicles/${id}`);
         setVehicle(res.data);
         setLoading(false);
       } catch (err) {
@@ -34,21 +40,8 @@ const Booking = () => {
       }
     };
 
-    const fetchUser = async () => {
-      try {
-        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/user/profile`, {
-          withCredentials: true
-        });
-        setUser(res.data);
-      } catch (err) {
-        console.error('Error fetching user:', err);
-        // Not setting an error here as guest booking might be allowed
-      }
-    };
-
     fetchVehicle();
-    fetchUser();
-  }, [id]);
+  }, [id, BASE_URL]);
 
   const calculateRentalDays = (start, end) => {
     const startDateObj = new Date(start);
@@ -63,7 +56,7 @@ const Booking = () => {
 
   const handleCheckout = async () => {
     if (!vehicle || !startDate || !endDate) {
-      alert('Missing booking information!');
+      setError('Missing booking information!');
       return;
     }
 
@@ -71,31 +64,25 @@ const Booking = () => {
     setError(null);
 
     try {
-      console.log("Creating checkout session with data:", {
+      // Prepare the payload exactly as the backend expects it
+      const payload = {
         vehicle: {
           _id: vehicle._id,
           name: vehicle.carName,
-          price: vehicle.payPerDay // Match the backend expectation
+          price: vehicle.payPerDay
         },
         userId: user?._id || 'guest',
         startDate,
         endDate
-      });
+      };
+      
+      console.log("Creating checkout session with data:", payload);
       
       const stripe = await stripePromise;
       
       const response = await axios.post(
-        `${import.meta.env.VITE_BACKEND_URL}/api/stripe/create-checkout-session`,
-        {
-          vehicle: {
-            _id: vehicle._id,
-            name: vehicle.carName,
-            price: vehicle.payPerDay // This is the key fix - matching backend expectation
-          },
-          userId: user?._id || 'guest',
-          startDate,
-          endDate
-        },
+        `${BASE_URL}/api/stripe/create-checkout-session`,
+        payload,
         { 
           withCredentials: true,
           headers: {
@@ -118,8 +105,9 @@ const Booking = () => {
         setError(`Payment failed: ${error.message}`);
       }
     } catch (err) {
-      console.error('Error creating checkout session:', err.response?.data || err.message);
-      setError(`Unable to process payment: ${err.response?.data?.message || err.message}`);
+      console.error('Error creating checkout session:', err);
+      const errorMessage = err.response?.data?.message || err.message || 'Payment processing failed';
+      setError(`Unable to process payment: ${errorMessage}`);
     } finally {
       setProcessingPayment(false);
     }
