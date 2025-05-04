@@ -5,7 +5,6 @@ import { loadStripe } from '@stripe/stripe-js';
 import { FaCar, FaGasPump, FaCogs, FaCalendarAlt, FaCreditCard } from 'react-icons/fa';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
-const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 const Booking = () => {
   const { id } = useParams();
@@ -17,20 +16,27 @@ const Booking = () => {
   const [loading, setLoading] = useState(true);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [error, setError] = useState(null);
+  const [debug, setDebug] = useState(null);
 
   const query = new URLSearchParams(location.search);
   const startDate = query.get('start');
   const endDate = query.get('end');
 
   useEffect(() => {
-    const userFromStorage = localStorage.getItem('user');
-    if (userFromStorage) {
-      setUser(JSON.parse(userFromStorage));
-    }
-    
+    const checkUserSession = () => {
+      const userFromStorage = localStorage.getItem('user');
+      if (userFromStorage) {
+        try {
+          setUser(JSON.parse(userFromStorage));
+        } catch (e) {
+          console.error("Failed to parse user from localStorage", e);
+        }
+      }
+    };
+
     const fetchVehicle = async () => {
       try {
-        const res = await axios.get(`${BASE_URL}/api/vehicles/${id}`);
+        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/vehicles/${id}`);
         setVehicle(res.data);
         setLoading(false);
       } catch (err) {
@@ -40,8 +46,22 @@ const Booking = () => {
       }
     };
 
+    const fetchUser = async () => {
+      try {
+        const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/user/profile`, {
+          withCredentials: true
+        });
+        setUser(res.data);
+      } catch (err) {
+        console.error('Error fetching user:', err);
+        // Not setting an error here as we may already have user from localStorage
+        checkUserSession();
+      }
+    };
+
     fetchVehicle();
-  }, [id, BASE_URL]);
+    fetchUser();
+  }, [id]);
 
   const calculateRentalDays = (start, end) => {
     const startDateObj = new Date(start);
@@ -56,33 +76,40 @@ const Booking = () => {
 
   const handleCheckout = async () => {
     if (!vehicle || !startDate || !endDate) {
-      setError('Missing booking information!');
+      alert('Missing booking information!');
+      return;
+    }
+
+    if (!user || !user._id) {
+      setError("You must be logged in to book a vehicle");
+      navigate('/login');
       return;
     }
 
     setProcessingPayment(true);
     setError(null);
+    setDebug(null);
 
     try {
-      // Prepare the payload exactly as the backend expects it
-      const payload = {
+      const paymentData = {
         vehicle: {
           _id: vehicle._id,
-          name: vehicle.carName,
-          price: vehicle.payPerDay
+          name: vehicle.carName,  // Match backend expectation
+          price: vehicle.payPerDay  // Match backend expectation
         },
-        userId: user?._id || 'guest',
+        userId: user._id,
         startDate,
         endDate
       };
       
-      console.log("Creating checkout session with data:", payload);
+      console.log("Creating checkout session with data:", paymentData);
+      setDebug("Sending payment request...");
       
       const stripe = await stripePromise;
       
       const response = await axios.post(
-        `${BASE_URL}/api/stripe/create-checkout-session`,
-        payload,
+        `${import.meta.env.VITE_BACKEND_URL}/api/stripe/create-checkout-session`,
+        paymentData,
         { 
           withCredentials: true,
           headers: {
@@ -92,22 +119,35 @@ const Booking = () => {
       );
 
       console.log("Checkout session response:", response.data);
+      setDebug(prev => prev + "\nReceived session ID");
+      
       const { id: sessionId } = response.data;
       
       if (!sessionId) {
         throw new Error('No session ID returned from server');
       }
 
+      setDebug(prev => prev + "\nRedirecting to Stripe...");
       const { error } = await stripe.redirectToCheckout({ sessionId });
 
       if (error) {
         console.error('Stripe redirect error:', error);
         setError(`Payment failed: ${error.message}`);
+        setDebug(prev => prev + "\nStripe redirect error: " + error.message);
       }
     } catch (err) {
       console.error('Error creating checkout session:', err);
-      const errorMessage = err.response?.data?.message || err.message || 'Payment processing failed';
-      setError(`Unable to process payment: ${errorMessage}`);
+      let errorMessage = "Unable to process payment";
+      
+      if (err.response) {
+        console.log("Response error data:", err.response.data);
+        errorMessage += `: ${err.response.data.message || err.response.statusText}`;
+        setDebug(JSON.stringify(err.response.data, null, 2));
+      } else if (err.message) {
+        errorMessage += `: ${err.message}`;
+      }
+      
+      setError(errorMessage);
     } finally {
       setProcessingPayment(false);
     }
@@ -221,6 +261,13 @@ const Booking = () => {
             {error && (
               <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md">
                 {error}
+              </div>
+            )}
+            
+            {debug && import.meta.env.DEV && (
+              <div className="mt-4 p-3 bg-gray-100 text-gray-700 rounded-md text-xs font-mono whitespace-pre-wrap">
+                <p className="font-semibold mb-1">Debug Info:</p>
+                {debug}
               </div>
             )}
           </div>

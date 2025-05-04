@@ -1,3 +1,4 @@
+// controllers/stripeController.js
 import Stripe from "stripe";
 import dotenv from "dotenv";
 dotenv.config();
@@ -9,11 +10,23 @@ export const createStripeSession = async (req, res) => {
     console.log("Creating Stripe session with data:", req.body);
     const { vehicle, userId, startDate, endDate } = req.body;
 
-    // Validate request data
-    if (!vehicle || !vehicle._id || !vehicle.name || !vehicle.price) {
+    // Validate the vehicle data structure - be more flexible with property names
+    if (!vehicle || !vehicle._id) {
       return res.status(400).json({ 
-        message: "Invalid vehicle data provided",
-        received: vehicle
+        message: "Invalid vehicle data: missing _id",
+        received: req.body
+      });
+    }
+
+    // Handle both name and carName for flexibility
+    const vehicleName = vehicle.name || vehicle.carName;
+    // Handle both price and payPerDay for flexibility
+    const vehiclePrice = vehicle.price || vehicle.payPerDay;
+    
+    if (!vehicleName || !vehiclePrice) {
+      return res.status(400).json({ 
+        message: "Invalid vehicle data: missing name/price information",
+        received: req.body
       });
     }
 
@@ -23,7 +36,7 @@ export const createStripeSession = async (req, res) => {
 
     const startDateObj = new Date(startDate);
     const endDateObj = new Date(endDate);
-    
+
     if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
       return res.status(400).json({ message: "Invalid date format" });
     }
@@ -33,16 +46,22 @@ export const createStripeSession = async (req, res) => {
       return res.status(400).json({ message: "End date must be after start date" });
     }
 
-    const totalAmount = Math.round(vehicle.price * rentalDays);
+    const totalAmount = Math.round(vehiclePrice * rentalDays);
 
-    // Create the session
+    console.log("Creating checkout session with:", {
+      vehicleName,
+      vehiclePrice,
+      rentalDays,
+      totalAmount
+    });
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [{
         price_data: {
           currency: "usd",
           product_data: {
-            name: `Rent ${vehicle.name}`,
+            name: `Rent ${vehicleName}`,
             description: `From ${startDate} to ${endDate} (${rentalDays} days)`
           },
           unit_amount: totalAmount * 100, // in cents
@@ -65,6 +84,10 @@ export const createStripeSession = async (req, res) => {
     res.json({ id: session.id });
   } catch (error) {
     console.error("Stripe session error:", error);
-    res.status(500).json({ message: "Stripe session failed", error: error.message });
+    res.status(500).json({ 
+      message: "Stripe session failed", 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'production' ? undefined : error.stack 
+    });
   }
 };

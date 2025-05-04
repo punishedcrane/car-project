@@ -14,6 +14,7 @@ import Booking from './pages/Booking';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentCancel from './pages/PaymentCancel';
 
+
 const App = () => {
   return (
     <Router>
@@ -31,6 +32,7 @@ const App = () => {
             <Route path="/booking/:id" element={<Booking />} />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/payment-cancel" element={<PaymentCancel />} />
+            
           </Routes>
         </main>
         <Footer /> {/* Add the Footer component here */}
